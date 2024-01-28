@@ -1,12 +1,16 @@
 package main
 
 import (
-	"database/sql"
+	"log"
 	"math/rand"
 	"testing"
 	"time"
 
+	"github.com/jmoiron/sqlx"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	_ "modernc.org/sqlite"
 )
 
 var (
@@ -28,94 +32,195 @@ func getTestParcel() Parcel {
 	}
 }
 
-// TestAddGetDelete проверяет добавление, получение и удаление посылки
 func TestAddGetDelete(t *testing.T) {
-	// prepare
-	db, err := // настройте подключение к БД
+	db, err := sqlx.Open("sqlite", "tracker.db")
+	require.NoError(t, err)
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Failed to close the database: %v", err)
+		}
+	}()
+
 	store := NewParcelStore(db)
 	parcel := getTestParcel()
 
-	// add
-	// добавьте новую посылку в БД, убедитесь в отсутствии ошибки и наличии идентификатора
+	id, err := store.Add(parcel)
+	require.NoError(t, err)
+	require.NotZero(t, id)
 
-	// get
-	// получите только что добавленную посылку, убедитесь в отсутствии ошибки
-	// проверьте, что значения всех полей в полученном объекте совпадают со значениями полей в переменной parcel
+	storedParcel, err := store.Get(id)
+	require.NoError(t, err)
+	assert.Equal(t, parcel.Client, storedParcel.Client)
+	assert.Equal(t, parcel.Status, storedParcel.Status)
+	assert.Equal(t, parcel.Address, storedParcel.Address)
+	assert.Equal(t, parcel.CreatedAt, storedParcel.CreatedAt)
 
-	// delete
-	// удалите добавленную посылку, убедитесь в отсутствии ошибки
-	// проверьте, что посылку больше нельзя получить из БД
+	err = store.Delete(id)
+	require.NoError(t, err)
+
+	_, err = store.Get(id)
+	require.Error(t, err)
 }
 
-// TestSetAddress проверяет обновление адреса
 func TestSetAddress(t *testing.T) {
-	// prepare
-	db, err := // настройте подключение к БД
+	db, err := sqlx.Open("sqlite", "tracker.db")
+	require.NoError(t, err)
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Failed to close the database: %v", err)
+		}
+	}()
 
-	// add
-	// добавьте новую посылку в БД, убедитесь в отсутствии ошибки и наличии идентификатора
+	store := NewParcelStore(db)
+	parcel := getTestParcel()
 
-	// set address
-	// обновите адрес, убедитесь в отсутствии ошибки
+	id, err := store.Add(parcel)
+	require.NoError(t, err)
+	require.NotZero(t, id)
+
 	newAddress := "new test address"
+	err = store.SetAddress(id, newAddress)
+	require.NoError(t, err)
 
-	// check
-	// получите добавленную посылку и убедитесь, что адрес обновился
+	storedParcel, err := store.Get(id)
+	require.NoError(t, err)
+	assert.Equal(t, newAddress, storedParcel.Address)
 }
 
-// TestSetStatus проверяет обновление статуса
 func TestSetStatus(t *testing.T) {
-	// prepare
-	db, err := // настройте подключение к БД
+	db, err := sqlx.Open("sqlite", "tracker.db")
+	require.NoError(t, err)
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Failed to close the database: %v", err)
+		}
+	}()
+	store := NewParcelStore(db)
+	parcel := getTestParcel()
 
-	// add
-	// добавьте новую посылку в БД, убедитесь в отсутствии ошибки и наличии идентификатора
+	id, err := store.Add(parcel)
+	require.NoError(t, err)
+	require.NotZero(t, id)
 
-	// set status
-	// обновите статус, убедитесь в отсутствии ошибки
+	newStatus := ParcelStatusSent
+	err = store.SetStatus(id, newStatus)
+	require.NoError(t, err)
 
-	// check
-	// получите добавленную посылку и убедитесь, что статус обновился
+	storedParcel, err := store.Get(id)
+	require.NoError(t, err)
+	assert.Equal(t, newStatus, storedParcel.Status)
 }
 
-// TestGetByClient проверяет получение посылок по идентификатору клиента
 func TestGetByClient(t *testing.T) {
-	// prepare
-	db, err := // настройте подключение к БД
+	db, err := sqlx.Open("sqlite", "tracker.db")
+	require.NoError(t, err)
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Failed to close the database: %v", err)
+		}
+	}()
 
+	store := NewParcelStore(db)
 	parcels := []Parcel{
 		getTestParcel(),
 		getTestParcel(),
 		getTestParcel(),
 	}
-	parcelMap := map[int]Parcel{}
 
-	// задаём всем посылкам один и тот же идентификатор клиента
 	client := randRange.Intn(10_000_000)
-	parcels[0].Client = client
-	parcels[1].Client = client
-	parcels[2].Client = client
-
-	// add
-	for i := 0; i < len(parcels); i++ {
-		id, err := // добавьте новую посылку в БД, убедитесь в отсутствии ошибки и наличии идентификатора
-
-		// обновляем идентификатор добавленной у посылки
+	for i := range parcels {
+		parcels[i].Client = client
+		id, err := store.Add(parcels[i])
+		require.NoError(t, err)
+		require.NotZero(t, id)
 		parcels[i].Number = id
-
-		// сохраняем добавленную посылку в структуру map, чтобы её можно было легко достать по идентификатору посылки
-		parcelMap[id] = parcels[i]
 	}
 
-	// get by client
-	storedParcels, err := // получите список посылок по идентификатору клиента, сохранённого в переменной client
-	// убедитесь в отсутствии ошибки
-	// убедитесь, что количество полученных посылок совпадает с количеством добавленных
+	storedParcels, err := store.GetByClient(client)
+	require.NoError(t, err)
+	assert.Equal(t, len(parcels), len(storedParcels))
 
-	// check
-	for _, parcel := range storedParcels {
-		// в parcelMap лежат добавленные посылки, ключ - идентификатор посылки, значение - сама посылка
-		// убедитесь, что все посылки из storedParcels есть в parcelMap
-		// убедитесь, что значения полей полученных посылок заполнены верно
+	for _, storedParcel := range storedParcels {
+		for _, parcel := range parcels {
+			if parcel.Number == storedParcel.Number {
+				assert.Equal(t, parcel.Client, storedParcel.Client)
+				assert.Equal(t, parcel.Status, storedParcel.Status)
+				assert.Equal(t, parcel.Address, storedParcel.Address)
+				assert.Equal(t, parcel.CreatedAt, storedParcel.CreatedAt)
+			}
+		}
 	}
+}
+
+func TestRegister(t *testing.T) {
+	db, err := sqlx.Open("sqlite", "tracker.db")
+	require.NoError(t, err)
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Failed to close the database: %v", err)
+		}
+	}()
+
+	store := NewParcelStore(db)
+	service := NewParcelService(store)
+
+	client := 1
+	address := "Псков, д. Пушкина, ул. Колотушкина, д. 5"
+	parcel, err := service.Register(client, address)
+	require.NoError(t, err)
+
+	assert.Equal(t, client, parcel.Client)
+	assert.Equal(t, address, parcel.Address)
+	assert.Equal(t, ParcelStatusRegistered, parcel.Status)
+}
+
+func TestChangeAddress(t *testing.T) {
+	db, err := sqlx.Open("sqlite", "tracker.db")
+	require.NoError(t, err)
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Failed to close the database: %v", err)
+		}
+	}()
+
+	store := NewParcelStore(db)
+	service := NewParcelService(store)
+
+	parcel := getTestParcel()
+	id, err := store.Add(parcel)
+	require.NoError(t, err)
+	require.NotZero(t, id)
+
+	newAddress := "new test address"
+	err = service.ChangeAddress(id, newAddress)
+	require.NoError(t, err)
+
+	storedParcel, err := store.Get(id)
+	require.NoError(t, err)
+	assert.Equal(t, newAddress, storedParcel.Address)
+}
+
+func TestNextStatus(t *testing.T) {
+	db, err := sqlx.Open("sqlite", "tracker.db")
+	require.NoError(t, err)
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Failed to close the database: %v", err)
+		}
+	}()
+
+	store := NewParcelStore(db)
+	service := NewParcelService(store)
+
+	parcel := getTestParcel()
+	id, err := store.Add(parcel)
+	require.NoError(t, err)
+	require.NotZero(t, id)
+
+	err = service.NextStatus(id)
+	require.NoError(t, err)
+
+	storedParcel, err := store.Get(id)
+	require.NoError(t, err)
+	assert.Equal(t, ParcelStatusSent, storedParcel.Status)
 }

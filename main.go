@@ -1,26 +1,13 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	_ "modernc.org/sqlite"
 )
-
-const (
-	ParcelStatusRegistered = "registered"
-	ParcelStatusSent       = "sent"
-	ParcelStatusDelivered  = "delivered"
-)
-
-type Parcel struct {
-	Number    int
-	Client    int
-	Status    string
-	Address   string
-	CreatedAt string
-}
 
 type ParcelService struct {
 	store ParcelStore
@@ -97,76 +84,74 @@ func (s ParcelService) Delete(number int) error {
 }
 
 func main() {
-	// настройте подключение к БД
+	db, err := sqlx.Open("sqlite", "tracker.db")
+	if err != nil {
+		log.Printf("Failed to open the database: %v", err)
+		return
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Failed to close the database: %v", err)
+		}
+	}()
 
-	store := // создайте объект ParcelStore функцией NewParcelStore
+	store := NewParcelStore(db)
 	service := NewParcelService(store)
 
-	// регистрация посылки
 	client := 1
 	address := "Псков, д. Пушкина, ул. Колотушкина, д. 5"
 	p, err := service.Register(client, address)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("Failed to register parcel: %v", err)
 		return
 	}
 
-	// изменение адреса
 	newAddress := "Саратов, д. Верхние Зори, ул. Козлова, д. 25"
 	err = service.ChangeAddress(p.Number, newAddress)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("Failed to change address: %v", err)
 		return
 	}
 
-	// изменение статуса
 	err = service.NextStatus(p.Number)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("Failed to update status: %v", err)
 		return
 	}
 
-	// вывод посылок клиента
 	err = service.PrintClientParcels(client)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("Failed to print client parcels: %v", err)
 		return
 	}
 
-	// попытка удаления отправленной посылки
 	err = service.Delete(p.Number)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("Failed to delete parcel: %v", err)
 		return
 	}
 
-	// вывод посылок клиента
-	// предыдущая посылка не должна удалиться, т.к. её статус НЕ «зарегистрирована»
 	err = service.PrintClientParcels(client)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("Failed to print client parcels: %v", err)
 		return
 	}
 
-	// регистрация новой посылки
 	p, err = service.Register(client, address)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("Failed to register parcel: %v", err)
 		return
 	}
 
-	// удаление новой посылки
 	err = service.Delete(p.Number)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("Failed to delete parcel: %v", err)
 		return
 	}
 
-	// вывод посылок клиента
-	// здесь не должно быть последней посылки, т.к. она должна была успешно удалиться
 	err = service.PrintClientParcels(client)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("Failed to print client parcels: %v", err)
 		return
 	}
 }

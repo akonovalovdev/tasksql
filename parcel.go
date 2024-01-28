@@ -1,14 +1,14 @@
 package main
 
 import (
-	"database/sql"
+	"github.com/jmoiron/sqlx"
 )
 
 type ParcelStore struct {
-	db *sql.DB
+	db *sqlx.DB
 }
 
-func NewParcelStore(db *sql.DB) ParcelStore {
+func NewParcelStore(db *sqlx.DB) ParcelStore {
 	return ParcelStore{db: db}
 }
 
@@ -27,12 +27,12 @@ type Parcel struct {
 }
 
 func (s ParcelStore) Add(p Parcel) (int, error) {
-	query := `INSERT INTO parcel (client, status, address, created_at) VALUES (?, ?, ?, ?)`
-	result, err := s.db.Exec(query, p.Client, p.Status, p.Address, p.CreatedAt)
+	query := `INSERT INTO parcel (client, status, address, created_at) VALUES (:client, :status, :address, :created_at)`
+	res, err := s.db.NamedExec(query, p)
 	if err != nil {
 		return 0, err
 	}
-	id, err := result.LastInsertId()
+	id, err := res.LastInsertId()
 	if err != nil {
 		return 0, err
 	}
@@ -40,52 +40,49 @@ func (s ParcelStore) Add(p Parcel) (int, error) {
 }
 
 func (s ParcelStore) Get(number int) (Parcel, error) {
-	query := `SELECT number, client, status, address, created_at FROM parcel WHERE number = ?`
-	row := s.db.QueryRow(query, number)
-	p := Parcel{}
-	err := row.Scan(&p.Number, &p.Client, &p.Status, &p.Address, &p.CreatedAt)
+	query, args, err := sqlx.Named(`SELECT number, client, status, address, created_at FROM parcel WHERE number = :number`, map[string]interface{}{"number": number})
 	if err != nil {
-		return p, err
+		return Parcel{}, err
 	}
-	return p, nil
+	p := Parcel{}
+	err = s.db.Get(&p, query, args...)
+	return p, err
 }
 
 func (s ParcelStore) GetByClient(client int) ([]Parcel, error) {
-	query := `SELECT number, client, status, address, created_at FROM parcel WHERE client = ?`
-	rows, err := s.db.Query(query, client)
+	query, args, err := sqlx.Named(`SELECT number, client, status, address, created_at FROM parcel WHERE client = :client`, map[string]interface{}{"client": client})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	var parcels []Parcel
-	for rows.Next() {
-		p := Parcel{}
-		err := rows.Scan(&p.Number, &p.Client, &p.Status, &p.Address, &p.CreatedAt)
-		if err != nil {
-			return nil, err
-		}
-		parcels = append(parcels, p)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-	return parcels, nil
+	err = s.db.Select(&parcels, query, args...)
+	return parcels, err
 }
 
 func (s ParcelStore) SetStatus(number int, status string) error {
-	query := `UPDATE parcel SET status = ? WHERE number = ?`
-	_, err := s.db.Exec(query, status, number)
+	query := `UPDATE parcel SET status = :status WHERE number = :number`
+	_, err := s.db.NamedExec(query, map[string]interface{}{
+		"status": status,
+		"number": number,
+	})
 	return err
 }
 
 func (s ParcelStore) SetAddress(number int, address string) error {
-	query := `UPDATE parcel SET address = ? WHERE number = ? AND status = ?`
-	_, err := s.db.Exec(query, address, number, ParcelStatusRegistered)
+	query := `UPDATE parcel SET address = :address WHERE number = :number AND status = :status`
+	_, err := s.db.NamedExec(query, map[string]interface{}{
+		"address": address,
+		"number":  number,
+		"status":  ParcelStatusRegistered,
+	})
 	return err
 }
 
 func (s ParcelStore) Delete(number int) error {
-	query := `DELETE FROM parcel WHERE number = ? AND status = ?`
-	_, err := s.db.Exec(query, number, ParcelStatusRegistered)
+	query := `DELETE FROM parcel WHERE number = :number AND status = :status`
+	_, err := s.db.NamedExec(query, map[string]interface{}{
+		"number": number,
+		"status": ParcelStatusRegistered,
+	})
 	return err
 }

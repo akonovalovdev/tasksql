@@ -19,11 +19,11 @@ const (
 )
 
 type Parcel struct {
-	Number    int
-	Client    int
-	Status    string
-	Address   string
-	CreatedAt string
+	Number    int    `db:"number"`
+	Client    int    `db:"client"`
+	Status    string `db:"status"`
+	Address   string `db:"address"`
+	CreatedAt string `db:"created_at"`
 }
 
 func (s ParcelStore) Add(p Parcel) (int, error) {

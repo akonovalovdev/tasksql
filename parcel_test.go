@@ -33,7 +33,7 @@ func getTestParcel() Parcel {
 }
 
 func TestAddGetDelete(t *testing.T) {
-	db, err := sqlx.Open("sqlite", "demo.db")
+	db, err := sqlx.Open("sqlite", "tracker.db")
 	require.NoError(t, err)
 	defer func() {
 		if err := db.Close(); err != nil {
@@ -63,7 +63,7 @@ func TestAddGetDelete(t *testing.T) {
 }
 
 func TestSetAddress(t *testing.T) {
-	db, err := sqlx.Open("sqlite", "demo.db")
+	db, err := sqlx.Open("sqlite", "tracker.db")
 	require.NoError(t, err)
 	defer func() {
 		if err := db.Close(); err != nil {
@@ -88,7 +88,7 @@ func TestSetAddress(t *testing.T) {
 }
 
 func TestSetStatus(t *testing.T) {
-	db, err := sqlx.Open("sqlite", "demo.db")
+	db, err := sqlx.Open("sqlite", "tracker.db")
 	require.NoError(t, err)
 	defer func() {
 		if err := db.Close(); err != nil {
@@ -112,7 +112,7 @@ func TestSetStatus(t *testing.T) {
 }
 
 func TestGetByClient(t *testing.T) {
-	db, err := sqlx.Open("sqlite", "demo.db")
+	db, err := sqlx.Open("sqlite", "tracker.db")
 	require.NoError(t, err)
 	defer func() {
 		if err := db.Close(); err != nil {
@@ -150,4 +150,77 @@ func TestGetByClient(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestRegister(t *testing.T) {
+	db, err := sqlx.Open("sqlite", "tracker.db")
+	require.NoError(t, err)
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Failed to close the database: %v", err)
+		}
+	}()
+
+	store := NewParcelStore(db)
+	service := NewParcelService(store)
+
+	client := 1
+	address := "Псков, д. Пушкина, ул. Колотушкина, д. 5"
+	parcel, err := service.Register(client, address)
+	require.NoError(t, err)
+
+	assert.Equal(t, client, parcel.Client)
+	assert.Equal(t, address, parcel.Address)
+	assert.Equal(t, ParcelStatusRegistered, parcel.Status)
+}
+
+func TestChangeAddress(t *testing.T) {
+	db, err := sqlx.Open("sqlite", "tracker.db")
+	require.NoError(t, err)
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Failed to close the database: %v", err)
+		}
+	}()
+
+	store := NewParcelStore(db)
+	service := NewParcelService(store)
+
+	parcel := getTestParcel()
+	id, err := store.Add(parcel)
+	require.NoError(t, err)
+	require.NotZero(t, id)
+
+	newAddress := "new test address"
+	err = service.ChangeAddress(id, newAddress)
+	require.NoError(t, err)
+
+	storedParcel, err := store.Get(id)
+	require.NoError(t, err)
+	assert.Equal(t, newAddress, storedParcel.Address)
+}
+
+func TestNextStatus(t *testing.T) {
+	db, err := sqlx.Open("sqlite", "tracker.db")
+	require.NoError(t, err)
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Failed to close the database: %v", err)
+		}
+	}()
+
+	store := NewParcelStore(db)
+	service := NewParcelService(store)
+
+	parcel := getTestParcel()
+	id, err := store.Add(parcel)
+	require.NoError(t, err)
+	require.NotZero(t, id)
+
+	err = service.NextStatus(id)
+	require.NoError(t, err)
+
+	storedParcel, err := store.Get(id)
+	require.NoError(t, err)
+	assert.Equal(t, ParcelStatusSent, storedParcel.Status)
 }
